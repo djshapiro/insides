@@ -30,7 +30,6 @@ quotes = quotes.readlines()
 quotes = [[thing.strip('"\r\n') for thing in quote.split(',')] for quote in quotes]
 
 for quote in quotes:
-    print quote
     symbol = column_format_mask[0](quote[0])
     last_price = column_format_mask[1](quote[1])
     day_range = column_format_mask[2](quote[2], last_price)

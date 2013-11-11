@@ -26,12 +26,13 @@ for symbol in stock_symbols:
         trade_price = trade["price"]
         trade_type = trade["type"]
         for quote in quotes:
-            quote_price = quote["price"]
-            if find_winner_fn[trade_type](trade_price, quote_price):
-                #print "WE FOUND A WINNER", symbol, trade_price, trade_type, quote_price
+            quote_price = quote["lastPrice"]
+            if find_winner_fn[trade_type](quote_price, trade_price):
+#DJSFIXME I don't think you can classify a stock as purely a winner or a loser. It's the actual trades that win or lose.
+#DJSIXME Need to verify that insider trades are made at public price
                 winning_stocks.add(symbol)
                 percent_change = (quote_price - trade_price) * 100 / trade_price
-                print "A winner is you: ", symbol, percent_change, trade_price, trade_type, quote_price
+                #print "A winner is you: ", symbol, percent_change, trade_price, trade_type, quote_price
                 #DJSFIXME Things I'll want to measure:
 # - Which people make money this way (more than 50% of the time?)?
 # - Which companies make money this way (more than 50% of the time?)? (We'll need to compare the behavior of this company with the behavior of this industry and the stock market as a whole)
@@ -53,11 +54,22 @@ for symbol in losing_stocks:
     quotes = q_collection.find({"symbol": symbol})
     quotes = list(quotes.sort("date", "DESCENDING"))
     latest_quote = quotes[0]
-    quote_price = latest_quote["price"]
+    quote_price = latest_quote["lastPrice"]
     for trade in trades:
         trade_price = trade["price"]
         trade_type = trade["type"]
         percent_change = (quote_price - trade_price) * 100 / trade_price
         print "Money losses: ", symbol, percent_change, trade_price, trade_type, quote_price
 
-
+for symbol in winning_stocks:
+    trades = list(it_collection.find({"symbol": symbol}))
+    quotes = q_collection.find({"symbol": symbol})
+#DJSFIXME Does this date sorting actually work? Would integer dates make more sense?
+    quotes = list(quotes.sort("date", "DESCENDING"))
+    latest_quote = quotes[0]
+    quote_price = latest_quote["lastPrice"]
+    for trade in trades:
+        trade_price = trade["price"]
+        trade_type = trade["type"]
+        percent_change = (quote_price - trade_price) * 100 / trade_price
+        print "Money gain: ", symbol, percent_change, trade_price, trade_type, quote_price
