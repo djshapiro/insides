@@ -4,6 +4,7 @@ import pymongo
 import datetime
 
 db_url = "localhost"
+TRADE_COST = 7
 
 mongo = pymongo.Connection(db_url)
 db = mongo.test
@@ -12,8 +13,8 @@ q_collection = db.quotes
 stock_symbols = set(it_collection.distinct("symbol"))
 
 find_winner_fn = {
-        "Buy":  lambda trade, quote: quote > trade,
-        "Sell": lambda trade, quote: quote < trade
+        "Buy":  lambda quote, trade: quote > trade,
+        "Sell": lambda quote, trade: quote < trade
 }
 
 winning_stocks = set()
@@ -22,6 +23,35 @@ for symbol in stock_symbols:
     trades = list(it_collection.find({"symbol": symbol}))
     quotes = q_collection.find({"symbol": symbol})
     quotes = list(quotes.sort("date", "ASCENDING"))
+    #DJSFIXME Eventually pul these from a mongo collection
+    #DJSFIXME Need a way to not save weekend data
+    '''strategies = {"Buy": {
+            "buy": {
+                "order": "market",
+                "whenPlaced": "1d"
+            },
+            "sell":
+                "order": "market",
+                "whenPlaced": "4d"
+            }
+        "Sell": {}
+        },
+        {"Buy": {
+            "buy": {
+                "order": "market",
+                "whenPlaced": "1d"
+            },
+            "sell":
+                "order": "limit",
+                "whenPlaced": "1d"
+                "whenFinished": "3m"
+                "limit": "20%"
+            }
+        "Sell": {}
+        }
+        for strategy in strategies:
+            stategy["portfolio"] = []'''
+        
     for trade in trades:
         trade_price = trade["price"]
         trade_type = trade["type"]
@@ -29,9 +59,9 @@ for symbol in stock_symbols:
             quote_price = quote["lastPrice"]
             if find_winner_fn[trade_type](quote_price, trade_price):
 #DJSFIXME I don't think you can classify a stock as purely a winner or a loser. It's the actual trades that win or lose.
-#DJSIXME Need to verify that insider trades are made at public price
+#DJSFIXME Need to verify that insider trades are made at public price
+#DJSFIXME Compare results to a purchase on a random date of the same stock. Aggregate these results. They should make money 50% of the time (?). Do insider trades succeed more ofter than random trades?
                 winning_stocks.add(symbol)
-                percent_change = (quote_price - trade_price) * 100 / trade_price
                 #print "A winner is you: ", symbol, percent_change, trade_price, trade_type, quote_price
                 #DJSFIXME Things I'll want to measure:
 # - Which people make money this way (more than 50% of the time?)?
@@ -43,7 +73,6 @@ for symbol in stock_symbols:
 # - How soon after a trade does a trade "win"?
                 #Some metadata-y way to:
                 #- Define metrics
-                #- Test investment strategies
 
 print "These are the winners: ", winning_stocks
 
