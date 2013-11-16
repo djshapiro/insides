@@ -2,14 +2,18 @@ import urllib2
 import ipdb
 import pymongo
 
+#Initialize some stuff
 columns = ["FAKE1", "symbol", "company", "name", "type", "shares", "price", "value", "time", "date"]
 column_format_mask = [None, str, str, str, str, int, float, None, None, str]
 db_url = "localhost"
+new_trades = []
+defaults = {}
 
-def create_trade_from_html(elements, defaults):
+def save_trade_from_html(elements, defaults):
     '''Takes a list of the elements of an insider trading transaction
        and turns them into an object representing the transaction.
-       The elements get scrubbed of any html and extra junk.'''
+       The elements get scrubbed of any html and extra junk.
+       Saves this trade to the database and returns it.'''
     new_insider_trade = {}
 
     for ii in range(len(elements)):
@@ -29,9 +33,12 @@ def create_trade_from_html(elements, defaults):
             else:
                 break
 
+        #remove white space
         element = element.strip()
-        func = column_format_mask[ii]
 
+        #If we've specified a conversion function for this element, convert and store.
+        #Otherwise, ignore this element.
+        func = column_format_mask[ii]
         if func:
             if func == int or func == float:
                 element = element.replace(",", "")
@@ -48,32 +55,32 @@ def create_trade_from_html(elements, defaults):
     if new_insider_trade.has_key("symbol") and new_insider_trade["symbol"] == "&nbsp;":
         new_insider_trade["symbol"] = defaults["symbol"]
 
-    symbol = ""
+    #Add trade to the database if we don't already have it
     if new_insider_trade:
-        symbol = new_insider_trade["symbol"]
-        collection.insert(new_insider_trade)
+        results = collection.find(new_insider_trade)
+        if not results.count():
+            collection.insert(new_insider_trade)
+            new_trades.append(new_insider_trade)
 
-    return symbol
+    return new_insider_trade
 
-
-
-#################
-#Parse new data and add it to the database
-#################
-
-new_insider_trades = []
-defaults = {}
+#Get the mongo collection
 mongo = pymongo.Connection(db_url)
 db = mongo.test
 collection = db.insiderTrades
 
-#Parse new data from the internet
+#Get raw html of recent insider trades
 response = urllib2.urlopen('http://www.insider-monitor.com/insider_stock_purchases.html')
 response = response.readlines()
 for line in response:
     if "<tr>" in line:
         for tag in ["<tr>", "</tr>"]:
             line = line.replace(tag, "")
-        symbol = create_trade_from_html(line.split("<td"), defaults)
-        if symbol:
-            defaults["symbol"] = symbol
+        new_trade = save_trade_from_html(line.split("<td"), defaults)
+        if new_trade.has_key("symbol"):
+            defaults["symbol"] = new_trade["symbol"]
+
+if new_trades:
+    print "New trades were saved.\n\n" + str(new_trades)
+else:
+    print "No new trades were saved."
