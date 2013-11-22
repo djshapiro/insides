@@ -9,6 +9,10 @@ db_url = "localhost"
 new_trades = []
 defaults = {}
 
+#DJSFIXME I probably should have made the conversions objects rather than a big list of functions. The objects could contain validation information, too.
+#DJSFIXME Make sure trades are made at market price
+#DJSFIXME Consider an API that parses SEC form 4s to get trade info
+
 def save_trade_from_html(elements, defaults):
     '''Takes a list of the elements of an insider trading transaction
        and turns them into an object representing the transaction.
@@ -50,6 +54,11 @@ def save_trade_from_html(elements, defaults):
     #    time = new_insider_trade.pop("time")
     #    dt = datetime.datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M:%S")
     #    new_insider_trade["dt"] = str(dt)
+
+    #Apply validation
+    if new_insider_trade.has_key("symbol") and " " in new_insider_trade["symbol"]:
+        #Ignore this if the symbol is bad
+        return {}
 
     #Apply defaults
     if new_insider_trade.has_key("symbol") and new_insider_trade["symbol"] == "&nbsp;":
