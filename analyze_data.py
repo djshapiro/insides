@@ -5,17 +5,79 @@ import datetime
 
 #Initialize some stuff
 db_url = "localhost"
-winners = 0
-losers = 0
-ties = 0
-all_perc = 0
-all_profit = 0
-all_cost = 0
 
 profit_fn = {
         "Buy":  lambda quote, trade: quote - trade,
         "Sell": lambda quote, trade: trade - quote
 }
+
+comparator_fn = {
+    "greaterThan": lambda quote, datum: quote > datum,
+    "lessThan": lambda quote, datum: quote < datum
+}
+
+def getValueDeep(values, path):
+    '''Get a value from a dictionary that is an arbitrary number of levels deep
+    
+       values: the dictionary to get values from
+       path: a list containing the successive keys that point to the desired value'''
+    if len(path) > 1:
+        return getValueDeep(values[path[0]], path[1:])
+    else:
+        return values[path[0]]
+
+def matchTradeFilter(trade, strategy):
+    '''Find which filter in this strategy matches this trade
+
+       trade: The insider trade to be matched
+       strategy: The strategy attempting to use this trade as investment advice'''
+    matching_filter = {}
+    for trade_filter in strategy["tradeFilters"]:
+        this_filter_matches = True
+        if trade_filter.has_key("if"):
+            for condition in trade_filter["if"]:
+                if trade_filter["if"][condition] != getValueDeep(trade, condition.split("-")[1:]):
+                    this_filter_matches = False
+                    break
+            if this_filter_matches:
+                matching_filter = trade_filter
+                break
+        else:
+            matching_filter = trade_filter
+
+    return matching_filter
+
+def applyTradeFilterDefaults(trade, trade_filter):
+    '''Make a trade filter usable if it doesn't have all the required information
+
+       trade: The trade we're eventually going to mimic. If needed, we'll take
+              default information from trade.
+       trade_filter: The filter to apply defaults to
+
+       SIDE EFFECTS: trade_filter may be mutated'''
+
+    if not trade_filter.has_key("begin"):
+        trade_filter["begin"] = {
+            "orderType": trade["type"],
+            "whenPlaced": "1d",
+            "order": "market"
+        }
+
+    if not trade_filter.has_key("end"):
+        trade_filter["end"] = {
+            "orderType": "Buy" if trade["type"]=="Sell" else "Sell",
+            "whenPlaced": "",
+            "order": "market"
+        }
+
+    return
+       
+def makeTrade(trade, parameters):
+    '''Simulate a trade according to the given parameters.
+
+       trade: The insider trade we're basing our trade on
+       parameters: Parameters of the trade we're making'''
+    #DJSFIXME whenPlaced == "" means today's date (like we haven't actualized the returns on this one yet)
 
 mongo = pymongo.Connection(db_url)
 db = mongo.test
@@ -58,14 +120,24 @@ now = str(datetime.datetime.date(datetime.datetime.now()))
         
     #Evaluate each trade compared to today's quote. Put results on trade (results can be a list of objects, each object containing parameters "date" and "profit")'''
 
-strategies = s_collection.find({})
-for strategy in strategies:
-    print strategy
-    #Evaluate each strategy compared to today's quotes. Put results on strategy (results can be a list of objects, each object containing parameters "date" and "profit")
+if __name__ == "__main__":
+    strategies = s_collection.find({})
+    for strategy in strategies:
+        for symbol in stock_symbols:
+            s_index = {"symbol": symbol}
+            sd_index = s_index.copy().update({"date": now})
+            quotes = q_collection.find({"symbol": symbol})
+            quotes = quotes.sort("date", pymongo.ASCENDING)
+            trades = it_collection.find({"symbol": symbol})
+            for trade in trades:
+                trade_filter = matchTradeFilter(trade, strategy)
+                applyTradeFilterDefaults(trade, trade_filter)
+                begin_trade = makeTrade(trade, trade_filter["begin"])
+                end_trade = makeTrade(trade, trade_filter["end"])
+        #Evaluate each strategy compared to today's quotes. Put results on strategy (results can be a list of objects, each object containing parameters "date" and "profit")
 
-print "\n------------------\n\nwinners: {}\nlosers:  {}\nties:    {}".format(winners, losers, ties)
-
-print "\n------------------\n\ntotal calculated: {}%".format(all_profit/all_cost)
+#print "\n------------------\n\nwinners: {}\nlosers:  {}\nties:    {}".format(winners, losers, ties)
+#print "\n------------------\n\ntotal calculated: {}%".format(all_profit/all_cost)
 
 
 '''for symbol in stock_symbols:
@@ -73,30 +145,40 @@ print "\n------------------\n\ntotal calculated: {}%".format(all_profit/all_cost
     quotes = q_collection.find({"symbol": symbol})
     quotes = quotes.sort("date", pymongo.ASCENDING)
     #DJSFIXME Eventually pull these from a mongo collection
-    strategies = {"Buy": {
-            "buy": {
-                "order": "market",
-                "whenPlaced": "1d"
-            },
-            "sell":
-                "order": "market",
-                "whenPlaced": "4d"
-            }
-        "Sell": {}
+
+    strategies = [
+        {
+            tradeFilters: [
+                {
+                    if: {
+                        tradeType: "Buy",
+                        price: {
+                            "comparator": "greaterThan",
+                            "datum": 24
+                        }
+                    },
+                    begin: {
+                        orderType: "Buy",
+                        whenPlaced: "1d",
+                        order: "market"
+                    },
+                    end: {
+                        orderType: "Sell",
+                        whenPlaced: "10d",
+                        order: "market"
+                    }
+                },
+                {...},
+                {
+                    begin: {
+                        orderType: "Buy",
+                        ...
+                    }
+                }
+            ]
         },
-        {"Buy": {
-            "buy": {
-                "order": "market",
-                "whenPlaced": "1d"
-            },
-            "sell":
-                "order": "limit",
-                "whenPlaced": "1d"
-                "whenFinished": "3m"
-                "limit": "20%"
-            }
-        "Sell": {}
-        }
+        {...}
+    ]
         for strategy in strategies:
             stategy["portfolio"] = []
         
