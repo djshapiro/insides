@@ -31,6 +31,7 @@ def matchTradeFilter(trade, strategy):
 
        trade: The insider trade to be matched
        strategy: The strategy attempting to use this trade as investment advice'''
+
     matching_filter = {}
     for trade_filter in strategy["tradeFilters"]:
         this_filter_matches = True
@@ -52,25 +53,31 @@ def applyTradeFilterDefaults(trade, trade_filter):
 
        trade: The trade we're eventually going to mimic. If needed, we'll take
               default information from trade.
-       trade_filter: The filter to apply defaults to
+       trade_filter: The filter to apply defaults to'''
 
-       SIDE EFFECTS: trade_filter may be mutated'''
+    return_filter = {}
+    if trade_filter.has_key("if"):
+        return_filter["if"] = trade_filter["if"]
 
     if not trade_filter.has_key("begin"):
-        trade_filter["begin"] = {
+        return_filter["begin"] = {
             "orderType": trade["type"],
             "whenPlaced": "1d",
             "order": "market"
         }
+    else:
+        return_filter["begin"] = trade_filter["begin"]
 
     if not trade_filter.has_key("end"):
-        trade_filter["end"] = {
+        return_filter["end"] = {
             "orderType": "Buy" if trade["type"]=="Sell" else "Sell",
             "whenPlaced": "",
             "order": "market"
         }
+    else:
+        return_filter["end"] = trade_filter["end"]
 
-    return
+    return return_filter
        
 def makeTrade(trade, parameters):
     '''Simulate a trade according to the given parameters.
@@ -131,7 +138,7 @@ if __name__ == "__main__":
             trades = it_collection.find({"symbol": symbol})
             for trade in trades:
                 trade_filter = matchTradeFilter(trade, strategy)
-                applyTradeFilterDefaults(trade, trade_filter)
+                trade_filter = applyTradeFilterDefaults(trade, trade_filter)
                 begin_trade = makeTrade(trade, trade_filter["begin"])
                 end_trade = makeTrade(trade, trade_filter["end"])
         #Evaluate each strategy compared to today's quotes. Put results on strategy (results can be a list of objects, each object containing parameters "date" and "profit")

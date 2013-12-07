@@ -1,5 +1,6 @@
 import unittest
 from analyze_data import getValueDeep, matchTradeFilter, applyTradeFilterDefaults, makeTrade
+import ipdb
 
 test_dict = {
         "a": 1,
@@ -52,7 +53,7 @@ strategies = [
         {
             "tradeFilters": [
                 {
-                    "if": {
+                    "if": { 
                         "trade-type": "Buy"
                     },
                     "begin": {
@@ -101,7 +102,12 @@ class Tests(unittest.TestCase):
     def testMatchTradeFilter3(self):
         self.failUnless(matchTradeFilter(trades[2], strategies[0]) == strategies[0]["tradeFilters"][1])
 
-def main():
-    unittest.main()
+    def testApplyTradeFilterDefaults1(self):
+        self.failUnless(applyTradeFilterDefaults(trades[0], strategies[0]["tradeFilters"][0]) == strategies[0]["tradeFilters"][0])
+    
+    def testApplyTradeFilterDefaults2(self):
+        expected = strategies[0]["tradeFilters"][1].copy()
+        expected["end"] = {"orderType": "Sell", "whenPlaced": "", "order": "market"}
+        self.failUnless(applyTradeFilterDefaults(trades[0], strategies[0]["tradeFilters"][1]) == expected)
 
-main()
+unittest.main()
